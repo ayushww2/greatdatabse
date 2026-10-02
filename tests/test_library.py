@@ -31,6 +31,9 @@ class LibraryApiTest(unittest.TestCase):
         self.assertEqual(names, {"Royal Family", "Space", "War"})
         royal = next(row for row in categories if row["name"] == "Royal Family")
         self.assertGreaterEqual(royal["people"], 35)
+        topics = self.client.get("/api/topics?category=royal-family", headers=self.headers).get_json()["topics"]
+        self.assertEqual(topics[0]["name"], "King Charles")
+        self.assertEqual(topics[1]["name"], "Queen Camilla")
         self.assertEqual(royal["clips"], 0)
 
         denied = self.client.get("/api/search?q=charles")

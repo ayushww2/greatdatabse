@@ -87,11 +87,40 @@ class Library:
         self._migrate()
         if not self.categories():
             self._seed()
+        self.sync_seed_order()
 
     def connect(self):
         conn = sqlite3.connect(self.db_path, check_same_thread=False)
         conn.row_factory = sqlite3.Row
         return conn
+
+    def _ensure_order_columns(self, conn):
+        for table in ("categories", "topics"):
+            columns = {row[1] for row in conn.execute(f"PRAGMA table_info({table})")}
+            if columns and "position" not in columns:
+                conn.execute(f"ALTER TABLE {table} ADD COLUMN position INTEGER NOT NULL DEFAULT 0")
+
+    def sync_seed_order(self):
+        with self.lock:
+            with self.connect() as conn:
+                for index, (name, _description) in enumerate(SEED_CATEGORIES):
+                    conn.execute(
+                        "UPDATE categories SET position = ? WHERE slug = ?",
+                        (index, slugify(name)),
+                    )
+                for category_name, topic_names in SEED_TOPICS.items():
+                    category = conn.execute(
+                        "SELECT id FROM categories WHERE slug = ?",
+                        (slugify(category_name),),
+                    ).fetchone()
+                    if not category:
+                        continue
+                    for index, topic_name in enumerate(topic_names):
+                        conn.execute(
+                            "UPDATE topics SET position = ? WHERE category_id = ? AND slug = ?",
+                            (index, category["id"], slugify(topic_name)),
+                        )
+            self._persist()
 
     def _migrate(self):
         with self.connect() as conn:
@@ -102,6 +131,7 @@ class Library:
                     slug TEXT UNIQUE NOT NULL,
                     name TEXT NOT NULL,
                     description TEXT NOT NULL DEFAULT '',
+                    position INTEGER NOT NULL DEFAULT 0,
                     created_at TEXT NOT NULL
                 );
                 CREATE TABLE IF NOT EXISTS topics (
@@ -109,6 +139,7 @@ class Library:
                     category_id TEXT NOT NULL,
                     slug TEXT NOT NULL,
                     name TEXT NOT NULL,
+                    position INTEGER NOT NULL DEFAULT 0,
                     created_at TEXT NOT NULL,
                     UNIQUE(category_id, slug),
                     FOREIGN KEY(category_id) REFERENCES categories(id)
@@ -128,6 +159,7 @@ class Library:
                 );
                 """
             )
+            self._ensure_order_columns(conn)
 
     def _restore(self):
         if os.path.exists(self.db_path) and os.path.getsize(self.db_path) > 0:
@@ -159,7 +191,7 @@ class Library:
                     (SELECT COUNT(*) FROM assets a JOIN topics t ON t.id = a.topic_id
                         WHERE t.category_id = c.id AND a.kind = 'clip') AS clips
                 FROM categories c
-                ORDER BY c.name
+                ORDER BY c.position, c.name
                 """
             ).fetchall()
         return [dict(row) for row in rows]
@@ -188,7 +220,7 @@ class Library:
             sql += " AND (t.name LIKE ? OR c.name LIKE ?)"
             like = f"%{query}%"
             params.extend([like, like])
-        sql += " ORDER BY t.name"
+        sql += " ORDER BY t.position, t.name"
         with self.connect() as conn:
             rows = conn.execute(sql, params).fetchall()
         return [dict(row) for row in rows]
@@ -217,16 +249,18 @@ class Library:
                 existing = conn.execute("SELECT * FROM categories WHERE slug = ?", (slug,)).fetchone()
                 if existing:
                     return dict(existing)
+                position = conn.execute("SELECT COALESCE(MAX(position), -1) + 1 FROM categories").fetchone()[0]
                 record = {
                     "id": str(uuid.uuid4()),
                     "slug": slug,
                     "name": name,
                     "description": (description or "").strip(),
+                    "position": position,
                     "created_at": now(),
                 }
                 conn.execute(
-                    "INSERT INTO categories (id, slug, name, description, created_at) VALUES (?, ?, ?, ?, ?)",
-                    (record["id"], record["slug"], record["name"], record["description"], record["created_at"]),
+                    "INSERT INTO categories (id, slug, name, description, position, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+                    (record["id"], record["slug"], record["name"], record["description"], record["position"], record["created_at"]),
                 )
             if persist:
                 self._persist()
@@ -249,18 +283,23 @@ class Library:
                     found["category_slug"] = category_row["slug"]
                     found["category_name"] = category_row["name"]
                     return found
+                position = conn.execute(
+                    "SELECT COALESCE(MAX(position), -1) + 1 FROM topics WHERE category_id = ?",
+                    (category_row["id"],),
+                ).fetchone()[0]
                 record = {
                     "id": str(uuid.uuid4()),
                     "category_id": category_row["id"],
                     "slug": slug,
                     "name": name,
+                    "position": position,
                     "created_at": now(),
                     "category_slug": category_row["slug"],
                     "category_name": category_row["name"],
                 }
                 conn.execute(
-                    "INSERT INTO topics (id, category_id, slug, name, created_at) VALUES (?, ?, ?, ?, ?)",
-                    (record["id"], record["category_id"], record["slug"], record["name"], record["created_at"]),
+                    "INSERT INTO topics (id, category_id, slug, name, position, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+                    (record["id"], record["category_id"], record["slug"], record["name"], record["position"], record["created_at"]),
                 )
             if persist:
                 self._persist()
