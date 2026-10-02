@@ -66,6 +66,15 @@ def cors(response):
     return response
 
 
+def size_label(n):
+    value = float(n or 0)
+    for unit in ("B", "KB", "MB", "GB"):
+        if value < 1024 or unit == "GB":
+            return f"{int(value)} {unit}" if unit == "B" else f"{value:.1f} {unit}"
+        value /= 1024
+    return f"{n} B"
+
+
 def messages():
     return request.args.getlist("m")
 
@@ -179,7 +188,10 @@ def topic_page(category_slug, topic_slug):
         category = lib.category(category_slug)
     except LibraryError:
         return redirect(url_for("library_home", m="Topic not found."))
-    assets = lib.assets(category_slug=category_slug, topic_slug=topic_slug, limit=200)
+    assets = lib.assets(category_slug=category_slug, topic_slug=topic_slug, limit=300, newest_first=False)
+    for index, asset in enumerate(assets, start=1):
+        asset["rank"] = index
+        asset["size_label"] = size_label(asset["size_bytes"])
     return page(
         "topic.html",
         title=topic["name"],

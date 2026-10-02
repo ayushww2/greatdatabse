@@ -433,7 +433,7 @@ class Library:
             raise LibraryError("Clip not found.", 404)
         return self._public_asset(dict(row))
 
-    def assets(self, category_slug=None, topic_slug=None, kind=None, query=None, limit=50, offset=0):
+    def assets(self, category_slug=None, topic_slug=None, kind=None, query=None, limit=50, offset=0, newest_first=True):
         sql = """
             SELECT a.*, t.slug AS topic_slug, t.name AS topic_name,
                    c.slug AS category_slug, c.name AS category_name
@@ -456,7 +456,7 @@ class Library:
             sql += " AND (a.title LIKE ? OR a.filename LIKE ? OR a.tags LIKE ? OR t.name LIKE ? OR c.name LIKE ?)"
             like = f"%{query}%"
             params.extend([like, like, like, like, like])
-        sql += " ORDER BY a.created_at DESC LIMIT ? OFFSET ?"
+        sql += " ORDER BY a.created_at " + ("DESC" if newest_first else "ASC") + " LIMIT ? OFFSET ?"
         params.extend([int(limit), int(offset)])
         with self.connect() as conn:
             rows = conn.execute(sql, params).fetchall()
