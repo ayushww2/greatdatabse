@@ -7,7 +7,7 @@ os.environ["LIBRARY_STORE"] = "memory"
 os.environ["ACCESS_PASSWORD"] = "test-password"
 os.environ["SECRET_KEY"] = "test"
 
-from main import app, get_library
+from main import app
 from library import Library
 from storage import MemoryStore
 
