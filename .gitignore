@@ -1,0 +1,5 @@
+.railway/
+__pycache__/
+*.pyc
+.venv/
+.env
