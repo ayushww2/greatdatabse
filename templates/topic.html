@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block body %}
+  <h1>{{ topic.name }}</h1>
+  <p class="sub"><a href="{{ url_for('category_page', slug=category.slug) }}">{{ category.name }}</a> · {{ images }} images · {{ clips }} raw clips</p>
+  <form class="card stack" method="post" action="{{ url_for('upload_clip') }}" enctype="multipart/form-data">
+    <strong>Store a clip on R2</strong>
+    <input type="hidden" name="category" value="{{ category.slug }}">
+    <input type="hidden" name="topic" value="{{ topic.slug }}">
+    <input name="file" type="file" required>
+    <div class="row">
+      <input name="title" type="text" placeholder="Title">
+      <select name="kind">
+        <option value="">Detect from file</option>
+        <option value="clip">Raw clip</option>
+        <option value="image">Image</option>
+      </select>
+      <input name="tags" type="text" placeholder="Tags, comma separated">
+      <button type="submit">Upload</button>
+    </div>
+  </form>
+  <div class="card panel">
+    {% if assets %}
+    <table>
+      <thead><tr><th>Title</th><th>Kind</th><th>File</th><th></th></tr></thead>
+      <tbody>
+      {% for asset in assets %}
+        <tr>
+          <td>{{ asset.title }}</td>
+          <td>{{ 'Image' if asset.kind == 'image' else 'Raw clip' }}</td>
+          <td>{{ asset.filename }}</td>
+          <td class="row">
+            <a class="btn" href="{{ asset.file_url }}">Open</a>
+            <form method="post" action="{{ url_for('delete_clip') }}">
+              <input type="hidden" name="id" value="{{ asset.id }}">
+              <input type="hidden" name="next" value="{{ request.path }}">
+              <button type="submit">Delete</button>
+            </form>
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+      <div class="meta">No clips stored for this topic yet.</div>
+    {% endif %}
+  </div>
+{% endblock %}

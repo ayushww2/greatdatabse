@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block body %}
+  <h1>Media Library</h1>
+  <p class="sub">Each clip is its own object in the R2 bucket.</p>
+  <form method="get" action="{{ url_for('library_home') }}" class="card">
+    <input class="search" name="q" value="{{ query }}" placeholder="Search people, places, or topics...">
+  </form>
+  <div class="grid panel">
+    {% for category in categories %}
+      <a class="card" href="{{ url_for('category_page', slug=category.slug) }}">
+        <h2>{{ category.name }}</h2>
+        <div class="meta">{{ category.people }} people · {{ category.images }} images · {{ category.clips }} raw clips</div>
+      </a>
+    {% endfor %}
+  </div>
+  {% if topics %}
+  <h2 class="panel">Matching topics</h2>
+  <div class="grid panel">
+    {% for topic in topics %}
+      <a class="topic" href="{{ url_for('topic_page', category_slug=topic.category_slug, topic_slug=topic.slug) }}">
+        <h3>{{ topic.name }}</h3>
+        <div class="meta">{{ topic.category_name }} · {{ topic.images }} images · {{ topic.clips }} raw clips</div>
+      </a>
+    {% endfor %}
+  </div>
+  {% endif %}
+  <form class="card stack panel" method="post" action="{{ url_for('add_category') }}">
+    <strong>Add a category</strong>
+    <input name="name" type="text" placeholder="Category name" required>
+    <button type="submit">Add category</button>
+  </form>
+{% endblock %}
