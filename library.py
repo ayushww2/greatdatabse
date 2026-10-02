@@ -177,6 +177,18 @@ class Library:
             self._persist()
         return {"slug": category["slug"], "name": category["name"]}
 
+    def delete_topic(self, category_slug, topic_slug):
+        topic = self.topic(category_slug, topic_slug)
+        with self.lock:
+            with self.connect() as conn:
+                keys = conn.execute("SELECT r2_key FROM assets WHERE topic_id = ?", (topic["id"],)).fetchall()
+                for row in keys:
+                    self.store.delete(row["r2_key"])
+                conn.execute("DELETE FROM assets WHERE topic_id = ?", (topic["id"],))
+                conn.execute("DELETE FROM topics WHERE id = ?", (topic["id"],))
+            self._persist()
+        return {"slug": topic["slug"], "name": topic["name"]}
+
     def category(self, slug):
         with self.connect() as conn:
             row = conn.execute("SELECT * FROM categories WHERE slug = ?", (slug,)).fetchone()

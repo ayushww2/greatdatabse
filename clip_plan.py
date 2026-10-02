@@ -334,8 +334,6 @@ PLAN = [
             ("CH-47 Chinook", 25),
             ("CH-47 Chinook Flying", 20),
             ("CH-47 Chinook Cargo Lift", 15),
-            ("MH-60 Seahawk", 20),
-            ("MH-60 Seahawk Ship Landing", 15),
             ("MQ-9 Reaper", 25),
             ("MQ-9 Reaper Flying", 20),
             ("MQ-9 Reaper Takeoff", 15),
