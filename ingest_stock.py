@@ -183,7 +183,16 @@ def trim_and_store(category, topic, clip):
     with tempfile.TemporaryDirectory() as folder:
         raw = os.path.join(folder, "raw.mp4")
         cut = os.path.join(folder, filename)
-        urllib.request.urlretrieve(clip["url"], raw)
+        request = urllib.request.Request(
+            clip["url"],
+            headers={"User-Agent": "Mozilla/5.0"},
+        )
+        with urllib.request.urlopen(request, timeout=120) as response, open(raw, "wb") as handle:
+            while True:
+                chunk = response.read(256 * 1024)
+                if not chunk:
+                    break
+                handle.write(chunk)
         result = subprocess.run(
             [
                 "ffmpeg",
@@ -264,7 +273,11 @@ def release(source_id):
         used_sources.discard(source_id)
 
 
-def fill_topic(category, hint, topic, target):
+def fill_topic(category, hint, topic, target, already=0):
+    target = max(0, target - already)
+    if target == 0:
+        log(f"{category} / {topic}: already full")
+        return 0
     clips = collect(topic, hint, target)
     stored = []
     for clip in clips:
@@ -310,8 +323,18 @@ def ensure_catalog():
 def main():
     load_existing_sources()
     ensure_catalog()
-    jobs = [(category, hint, topic, target) for category, hint, topics in PLAN for topic, target in topics]
-    log(f"starting {len(jobs)} topics, target {sum(job[3] for job in jobs)} clips, workers {WORKERS}")
+    existing = {}
+    for category, _hint, _topics in PLAN:
+        payload = library_json("GET", f"/api/topics?category={slugify(category)}")
+        for topic in payload["topics"]:
+            existing[(category, topic["name"])] = topic.get("clips") or 0
+    jobs = [
+        (category, hint, topic, target, existing.get((category, topic), 0))
+        for category, hint, topics in PLAN
+        for topic, target in topics
+    ]
+    remaining = sum(max(0, target - already) for _c, _h, _t, target, already in jobs)
+    log(f"starting {len(jobs)} topics, {remaining} clips still needed, workers {WORKERS}")
     with ThreadPoolExecutor(max_workers=WORKERS) as pool:
         futures = [pool.submit(fill_topic, *job) for job in jobs]
         for future in as_completed(futures):
