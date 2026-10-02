@@ -15,7 +15,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import boto3
 from botocore.client import Config
 
-from clip_plan import PLAN
+from clip_plan import ANGLES, PLAN
 from library import is_landscape_16_9, safe_filename, slugify
 
 STOCK = os.environ.get("STOCK_API", "https://stock-clips-api-production.up.railway.app")
@@ -134,6 +134,8 @@ def queries_for(topic, hint):
         f"{hint} {topic}",
         f"{topic} wide shot",
     ]
+    for angle in ANGLES.get(topic, []):
+        stems.append(f"{topic} {angle}")
     seen = []
     for stem in stems:
         cleaned = " ".join(stem.split())
