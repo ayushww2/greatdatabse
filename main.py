@@ -290,13 +290,27 @@ def api_create_topics():
         names = [names]
     if body.get("name"):
         names = [body["name"], *names]
-    created = []
     try:
-        for name in names:
-            created.append(get_library().create_topic(category, name))
+        created = get_library().create_topics_bulk(category, names)
     except LibraryError as exc:
         return jsonify({"error": str(exc)}), exc.status
     return jsonify({"topics": created}), 201
+
+
+@app.post("/api/clips/import")
+@api_required
+def api_import_clips():
+    body = request.get_json(silent=True) or {}
+    items = body.get("assets") or []
+    if not items:
+        return jsonify({"error": "assets is required."}), 400
+    try:
+        saved = get_library().import_assets(items)
+    except LibraryError as exc:
+        return jsonify({"error": str(exc)}), exc.status
+    except KeyError as exc:
+        return jsonify({"error": f"Missing {exc}."}), 400
+    return jsonify({"clips": saved}), 201
 
 
 @app.get("/api/search")

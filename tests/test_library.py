@@ -101,6 +101,35 @@ class LibraryApiTest(unittest.TestCase):
         self.assertIn(b"Royal Family", home.data)
         self.assertIn(b"raw clips", home.data)
 
+    def test_import_registers_separate_keys(self):
+        self.client.post(
+            "/api/categories",
+            headers={**self.headers, "Content-Type": "application/json"},
+            json={"name": "Ancient Egypt / Archaeology"},
+        )
+        created = self.client.post(
+            "/api/clips/import",
+            headers={**self.headers, "Content-Type": "application/json"},
+            json={
+                "assets": [
+                    {
+                        "category": "Ancient Egypt / Archaeology",
+                        "topic": "Egyptian Pyramids",
+                        "title": "Pyramids",
+                        "filename": "pyramids.mp4",
+                        "content_type": "video/mp4",
+                        "size_bytes": 12,
+                        "r2_key": "media/ancient-egypt-archaeology/egyptian-pyramids/a/pyramids.mp4",
+                        "tags": ["source:111"],
+                    }
+                ]
+            },
+        )
+        self.assertEqual(created.status_code, 201, created.get_data(as_text=True))
+        clip = created.get_json()["clips"][0]
+        self.assertEqual(clip["topic"]["name"], "Egyptian Pyramids")
+        self.assertEqual(clip["tags"], ["source:111"])
+
     def test_database_restores_from_store(self):
         store = MemoryStore()
         path = os.path.join(self.tmp.name, "one.sqlite")

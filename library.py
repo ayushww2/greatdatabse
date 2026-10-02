@@ -305,6 +305,13 @@ class Library:
                 self._persist()
         return record
 
+    def create_topics_bulk(self, category, names):
+        created = []
+        for name in names:
+            created.append(self.create_topic(category, name, persist=False))
+        self._persist()
+        return created
+
     def _category_lookup(self, value):
         key = (value or "").strip()
         with self.connect() as conn:
@@ -361,6 +368,59 @@ class Library:
                 )
             self._persist()
         return self.asset(asset_id)
+
+    def import_assets(self, items):
+        prepared = []
+        for item in items:
+            category_row = self._category_lookup(item.get("category", ""))
+            topic_row = self._topic_lookup(category_row, item.get("topic", ""))
+            tags = item.get("tags") or []
+            if isinstance(tags, str):
+                tags = [tag.strip() for tag in tags.split(",") if tag.strip()]
+            prepared.append(
+                {
+                    "id": item.get("id") or str(uuid.uuid4()),
+                    "topic_id": topic_row["id"],
+                    "kind": "clip" if item.get("kind") not in ("image", "clip") else item["kind"],
+                    "title": (item.get("title") or item.get("filename") or "clip").strip(),
+                    "filename": safe_filename(item.get("filename") or "clip.mp4"),
+                    "content_type": item.get("content_type") or "video/mp4",
+                    "size_bytes": int(item.get("size_bytes") or 0),
+                    "r2_key": item["r2_key"],
+                    "tags": ", ".join(tags),
+                    "created_at": now(),
+                }
+            )
+        saved = []
+        with self.lock:
+            with self.connect() as conn:
+                for record in prepared:
+                    existing = conn.execute("SELECT id FROM assets WHERE r2_key = ?", (record["r2_key"],)).fetchone()
+                    if existing:
+                        saved.append(existing["id"])
+                        continue
+                    conn.execute(
+                        """
+                        INSERT INTO assets
+                        (id, topic_id, kind, title, filename, content_type, size_bytes, r2_key, tags, created_at)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        """,
+                        (
+                            record["id"],
+                            record["topic_id"],
+                            record["kind"],
+                            record["title"],
+                            record["filename"],
+                            record["content_type"],
+                            record["size_bytes"],
+                            record["r2_key"],
+                            record["tags"],
+                            record["created_at"],
+                        ),
+                    )
+                    saved.append(record["id"])
+            self._persist()
+        return [self.asset(asset_id) for asset_id in saved]
 
     def _topic_lookup(self, category_row, value):
         key = (value or "").strip()
