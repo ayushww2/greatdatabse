@@ -13,7 +13,7 @@
   .clip-meta { padding:8px 10px 10px; }
   .clip-meta strong { display:block; font-size:12px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .clip-meta span { color:var(--muted); font-size:12px; }
-  .player-panel { position:sticky; top:16px; background:#12161d; border:1px solid var(--line); border-radius:16px; padding:12px; }
+  .player-panel { position:sticky; top:16px; width:100%; background:#12161d; border:1px solid var(--line); border-radius:16px; padding:12px; }
   .stage { width:100%; height:420px; background:#000; border-radius:12px; display:block; }
   .now-title { margin:12px 4px 4px; font-size:16px; font-weight:700; }
   .facts { margin:0 4px 8px; color:var(--muted); font-size:13px; display:grid; gap:4px; }
@@ -59,7 +59,7 @@
     <div class="card"><div class="meta">No clips stored for this topic yet.</div></div>
     {% endif %}
   </div>
-  <aside class="player-panel">
+  <section class="player-panel">
     <video id="stage" class="stage" controls playsinline preload="metadata"></video>
     <div class="now-title" id="now-title">Select a clip</div>
     <div class="facts">
@@ -67,7 +67,7 @@
       <div>Type <b id="now-kind">Clip</b></div>
       <div>Size <b id="now-size">—</b></div>
     </div>
-  </aside>
+  </section>
 </div>
 <details class="uploader">
   <summary>Upload another clip</summary>
