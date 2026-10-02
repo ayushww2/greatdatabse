@@ -5,38 +5,41 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{{ title }} · Great AW Database</title>
   <style>
-    :root { color-scheme: dark; --bg:#12060d; --side:#1a0a12; --card:#2a121c; --line:#4a2836; --text:#f6eef2; --muted:#c7a8b4; --accent:#c43b5b; }
+    :root { color-scheme: dark; --bg:#0c0e12; --side:#12151b; --card:#181c24; --line:#2c3340; --text:#f4f6f8; --muted:#9aa3b2; --accent:#3b82f6; }
     * { box-sizing: border-box; }
     body { margin:0; font:15px/1.45 system-ui, sans-serif; background:var(--bg); color:var(--text); }
     a { color: inherit; text-decoration: none; }
     .shell { display:flex; min-height:100vh; }
-    aside { width:220px; background:var(--side); border-right:1px solid #2c121c; padding:22px 14px; }
-    aside .brand { font-weight:700; font-size:18px; }
+    aside { width:220px; background:var(--side); border-right:1px solid var(--line); padding:22px 14px; }
+    aside .brand { font-weight:700; font-size:18px; letter-spacing:-0.02em; }
     aside .tag { color:var(--muted); font-size:12px; margin:2px 0 22px; }
     aside nav a { display:block; padding:10px 12px; border-radius:10px; color:var(--muted); margin-bottom:4px; }
-    aside nav a.active { background:#3a1826; color:white; }
+    aside nav a.active, aside nav a:hover { background:#243044; color:white; }
     main { flex:1; padding:28px 32px 64px; }
-    h1 { margin:0; font-size:28px; }
+    h1 { margin:0; font-size:28px; letter-spacing:-0.03em; }
     .sub { color:var(--muted); margin:4px 0 22px; }
     .grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(230px, 1fr)); gap:12px; }
-    .card, .topic { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:16px; }
+    .card, .topic { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:16px; }
+    .topic:hover, a.card:hover { border-color:#3d4d66; }
     .topic { min-height:92px; }
-    .topic h3, .card h2 { margin:0 0 8px; font-size:16px; }
+    .topic h3, .card h2 { margin:0 0 8px; font-size:16px; letter-spacing:-0.01em; }
     .meta { color:var(--muted); font-size:13px; }
-    .search { width:100%; background:white; color:#1a1020; border:0; border-radius:8px; padding:12px 14px; font-size:15px; }
-    button, .btn { background:var(--accent); color:white; border:0; border-radius:8px; padding:10px 14px; font-weight:650; cursor:pointer; }
+    .search { width:100%; background:#10141b; color:var(--text); border:1px solid var(--line); border-radius:10px; padding:12px 14px; font-size:15px; }
+    .search:focus { outline:2px solid #2563eb; border-color:transparent; }
+    button, .btn { background:var(--accent); color:white; border:0; border-radius:10px; padding:10px 14px; font-weight:650; cursor:pointer; }
+    button:hover, .btn:hover { background:#2563eb; }
     button.ghost { background:transparent; border:1px solid var(--line); }
     .row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
     form.stack { display:grid; gap:8px; margin-top:14px; }
     input[type=text], input[type=password], input[type=file], select, textarea {
-      width:100%; background:#12060d; color:var(--text); border:1px solid var(--line); border-radius:8px; padding:10px 12px;
+      width:100%; background:#10141b; color:var(--text); border:1px solid var(--line); border-radius:10px; padding:10px 12px;
     }
     table { width:100%; border-collapse:collapse; }
     th, td { text-align:left; padding:10px 8px; border-bottom:1px solid var(--line); vertical-align:middle; }
     th { color:var(--muted); font-size:12px; text-transform:uppercase; letter-spacing:.04em; }
-    .flash { background:#3a2414; color:#ffd7a8; border-radius:8px; padding:10px 12px; margin-bottom:12px; }
+    .flash { background:#1e293b; color:#dbeafe; border-radius:10px; padding:10px 12px; margin-bottom:12px; }
     .panel { margin-top:18px; }
-    code { color:#ffd0dc; }
+    code { color:#bfdbfe; }
     @media (max-width: 800px) { .shell { display:block; } aside { width:auto; } main { padding:20px 16px 48px; } }
   </style>
 </head>
