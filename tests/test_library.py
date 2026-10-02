@@ -8,7 +8,7 @@ os.environ["ACCESS_PASSWORD"] = "test-password"
 os.environ["SECRET_KEY"] = "test"
 
 from main import app
-from library import Library
+from library import Library, is_landscape_16_9
 from storage import MemoryStore
 
 
@@ -138,6 +138,14 @@ class LibraryApiTest(unittest.TestCase):
         clip = created.get_json()["clips"][0]
         self.assertEqual(clip["topic"]["name"], "Egyptian Pyramids")
         self.assertEqual(clip["tags"], ["source:111"])
+
+    def test_only_landscape_16_9(self):
+        self.assertTrue(is_landscape_16_9(1920, 1080))
+        self.assertTrue(is_landscape_16_9(1280, 720))
+        self.assertFalse(is_landscape_16_9(1080, 1920))
+        self.assertFalse(is_landscape_16_9(1080, 1080))
+        self.assertFalse(is_landscape_16_9(1440, 1080))
+        self.assertFalse(is_landscape_16_9(1920, 800))
 
     def test_database_restores_from_store(self):
         store = MemoryStore()

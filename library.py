@@ -503,6 +503,12 @@ class Library:
         }
 
 
+def is_landscape_16_9(width, height):
+    if not width or not height or width <= height:
+        return False
+    return abs((width / height) - (16 / 9)) <= 0.06
+
+
 def infer_kind(content_type):
     if (content_type or "").startswith("image/"):
         return "image"

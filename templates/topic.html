@@ -3,18 +3,18 @@
 <style>
   .review-head { display:flex; justify-content:space-between; gap:16px; align-items:flex-end; margin-bottom:14px; }
   .back { color:var(--muted); font-size:13px; }
-  .review { display:grid; grid-template-columns: minmax(0, 1fr) 560px; gap:18px; align-items:start; }
-  .clip-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(168px, 1fr)); gap:10px; }
+  .review { display:grid; grid-template-columns: minmax(0, 1fr) minmax(520px, 46vw); gap:18px; align-items:start; }
+  .clip-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(190px, 1fr)); gap:10px; }
   .clip-card { display:block; width:100%; text-align:left; background:#12161d; border:1px solid var(--line); border-radius:12px; padding:0; overflow:hidden; color:inherit; cursor:pointer; }
   .clip-card.selected { border-color:#60a5fa; box-shadow:0 0 0 1px #60a5fa; }
-  .thumb { position:relative; aspect-ratio:16/10; background:#07090d; }
+  .thumb { position:relative; aspect-ratio:16/9; background:#07090d; }
   .thumb video { width:100%; height:100%; object-fit:cover; display:block; background:#07090d; }
   .rank { position:absolute; left:8px; top:8px; background:rgba(0,0,0,.72); color:white; border-radius:999px; padding:2px 8px; font-size:12px; font-weight:700; }
   .clip-meta { padding:8px 10px 10px; }
   .clip-meta strong { display:block; font-size:12px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .clip-meta span { color:var(--muted); font-size:12px; }
   .player-panel { position:sticky; top:16px; width:100%; background:#12161d; border:1px solid var(--line); border-radius:16px; padding:12px; }
-  .stage { width:100%; height:460px; background:#000; border-radius:12px; display:block; }
+  .stage { width:100%; aspect-ratio:16/9; height:auto; object-fit:contain; background:#000; border-radius:12px; display:block; }
   .now-title { margin:12px 4px 4px; font-size:16px; font-weight:700; }
   .facts { margin:0 4px 8px; color:var(--muted); font-size:13px; display:grid; gap:4px; }
   .facts b { color:var(--text); font-weight:600; }
@@ -23,7 +23,7 @@
   @media (max-width: 1100px) {
     .review { grid-template-columns:1fr; }
     .player-panel { position:static; }
-    .stage { height:280px; }
+    .stage { height:auto; }
   }
 </style>
 <div class="review-head">

@@ -1,6 +1,7 @@
 """Pull one 6-second clip per stock source into the media library."""
 
 import json
+import sys
 import os
 import subprocess
 import tempfile
@@ -15,7 +16,7 @@ import boto3
 from botocore.client import Config
 
 from clip_plan import PLAN
-from library import safe_filename, slugify
+from library import is_landscape_16_9, safe_filename, slugify
 
 STOCK = os.environ.get("STOCK_API", "https://stock-clips-api-production.up.railway.app")
 LIBRARY = os.environ["LIBRARY_API"].rstrip("/")
@@ -58,6 +59,17 @@ def library_json(method, path, payload=None):
         return json.load(response)
 
 
+def load_rejected_sources():
+    path = os.path.join(STATE, "rejected.txt")
+    if not os.path.exists(path):
+        return
+    with open(path) as handle:
+        for line in handle:
+            source_id = line.strip()
+            if source_id:
+                used_sources.add(source_id)
+
+
 def load_existing_sources():
     offset = 0
     while True:
@@ -76,6 +88,7 @@ def load_existing_sources():
         offset += len(clips)
         if len(clips) < 200:
             break
+    load_rejected_sources()
     log(f"already stored sources {len(used_sources)}")
 
 
@@ -173,6 +186,38 @@ def collect(topic, hint, target):
     return chosen
 
 
+class SkipClip(Exception):
+    pass
+
+
+def frame_size(path):
+    raw = subprocess.check_output(
+        [
+            "ffprobe",
+            "-v",
+            "error",
+            "-select_streams",
+            "v:0",
+            "-show_entries",
+            "stream=width,height,sample_aspect_ratio",
+            "-of",
+            "json",
+            path,
+        ],
+        text=True,
+        timeout=40,
+    )
+    stream = json.loads(raw)["streams"][0]
+    width = int(stream["width"])
+    height = int(stream["height"])
+    sar = stream.get("sample_aspect_ratio") or "1:1"
+    if sar not in ("1:1", "0:1", "N/A", ""):
+        num, den = sar.split(":")
+        if int(den):
+            width = int(round(width * int(num) / int(den)))
+    return width, height
+
+
 def trim_and_store(category, topic, clip):
     source_id = str(clip["sourceId"])
     filename = safe_filename(f"{slugify(topic)}-{source_id}.mp4")
@@ -193,6 +238,9 @@ def trim_and_store(category, topic, clip):
                 if not chunk:
                     break
                 handle.write(chunk)
+        width, height = frame_size(raw)
+        if not is_landscape_16_9(width, height):
+            raise SkipClip(f"{width}x{height}")
         result = subprocess.run(
             [
                 "ffmpeg",
@@ -278,15 +326,26 @@ def fill_topic(category, hint, topic, target, already=0):
     if target == 0:
         log(f"{category} / {topic}: already full")
         return 0
-    clips = collect(topic, hint, target)
     stored = []
-    for clip in clips:
-        source_id = str(clip["sourceId"])
-        try:
-            stored.append(trim_and_store(category, topic, clip))
-        except Exception as exc:
-            release(source_id)
-            log(f"clip failed {topic} {source_id} {exc}")
+    for _round in range(6):
+        if len(stored) >= target:
+            break
+        clips = collect(topic, hint, target - len(stored))
+        if not clips:
+            break
+        for clip in clips:
+            source_id = str(clip["sourceId"])
+            try:
+                stored.append(trim_and_store(category, topic, clip))
+            except SkipClip as exc:
+                with open(os.path.join(STATE, "rejected.txt"), "a") as handle:
+                    handle.write(source_id + "\n")
+                log(f"skip not 16:9 {topic} {source_id} {exc}")
+            except Exception as exc:
+                release(source_id)
+                log(f"clip failed {topic} {source_id} {exc}")
+            if len(stored) >= target:
+                break
     if stored:
         for start in range(0, len(stored), 20):
             batch = stored[start : start + 20]
@@ -320,7 +379,56 @@ def ensure_catalog():
         log(f"catalog ready {category} ({len(names)} topics)")
 
 
+def prune_existing():
+    offset = 0
+    clips = []
+    while True:
+        page = library_json("GET", f"/api/clips?limit=200&offset={offset}")["clips"]
+        if not page:
+            break
+        clips.extend(page)
+        offset += len(page)
+        if len(page) < 200:
+            break
+    log(f"checking aspect of {len(clips)} clips")
+
+    def judge(clip):
+        url = s3.generate_presigned_url(
+            "get_object",
+            Params={"Bucket": BUCKET, "Key": clip["r2_key"]},
+            ExpiresIn=3600,
+        )
+        try:
+            width, height = frame_size(url)
+        except Exception as exc:
+            return clip, f"probe {exc}"
+        if is_landscape_16_9(width, height):
+            return clip, None
+        return clip, f"{width}x{height}"
+
+    removed = 0
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        for clip, reason in pool.map(judge, clips):
+            if not reason:
+                continue
+            try:
+                library_json("DELETE", f"/api/clips/{clip['id']}")
+            except Exception as exc:
+                log(f"delete failed {clip['id']} {exc}")
+                continue
+            removed += 1
+            source = next((tag.split(":", 1)[1] for tag in clip.get("tags") or [] if tag.startswith("source:")), "")
+            if source:
+                with open(os.path.join(STATE, "rejected.txt"), "a") as handle:
+                    handle.write(source + "\n")
+            log(f"removed {clip['topic']['name']} {clip['filename']} {reason}")
+    log(f"removed {removed} clips that were not landscape 16:9")
+
+
 def main():
+    if "--prune" in sys.argv:
+        prune_existing()
+        return
     load_existing_sources()
     ensure_catalog()
     existing = {}
