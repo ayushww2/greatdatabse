@@ -259,14 +259,6 @@ def trim_and_store(category, topic, clip):
     }
 
 
-def claim(source_id):
-    with sources_lock:
-        if source_id in used_sources:
-            return False
-        used_sources.add(source_id)
-        return True
-
-
 def release(source_id):
     with sources_lock:
         used_sources.discard(source_id)
