@@ -7,51 +7,9 @@ from datetime import datetime, timezone
 
 DB_OBJECT_KEY = "catalog/library.sqlite"
 
-SEED_CATEGORIES = [
-    ("Royal Family", "People, court footage, and royal context."),
-    ("Space", "Space footage library."),
-    ("War", "War footage library."),
-]
+SEED_CATEGORIES = []
 
-SEED_TOPICS = {
-    "Royal Family": [
-        "King Charles",
-        "Queen Camilla",
-        "Prince William",
-        "Princess Catherine",
-        "Prince George",
-        "Princess Charlotte",
-        "Prince Louis",
-        "Prince Harry",
-        "Meghan Markle",
-        "Princess Diana",
-        "Princess Anne",
-        "Sir Timothy Laurence",
-        "Prince Edward",
-        "Sophie Duchess of Edinburgh",
-        "Prince Andrew",
-        "Sarah Ferguson",
-        "Princess Beatrice",
-        "Princess Eugenie",
-        "Zara Tindall",
-        "Laura Lopes",
-        "Tom Parker Bowles",
-        "Charles Spencer",
-        "Documents & Letters",
-        "Extra — Charles & Camilla formal/court",
-        "Extra — Senior royals formal group",
-        "Extra — William & Harry formal/court",
-        "Frances Shand Kydd",
-        "Lady Jane Fellowes",
-        "Lady Sarah McCorquodale",
-        "Memory & Emotional",
-        "Press & Media",
-        "Private Meetings",
-        "Royal Estates & Residences",
-        "Study & Archive",
-        "Travel & Arrival",
-    ]
-}
+SEED_TOPICS = {}
 
 
 def slugify(value):
@@ -195,6 +153,29 @@ class Library:
                 """
             ).fetchall()
         return [dict(row) for row in rows]
+
+    def delete_category(self, slug):
+        category = self.category(slug)
+        with self.lock:
+            with self.connect() as conn:
+                keys = conn.execute(
+                    """
+                    SELECT a.r2_key FROM assets a
+                    JOIN topics t ON t.id = a.topic_id
+                    WHERE t.category_id = ?
+                    """,
+                    (category["id"],),
+                ).fetchall()
+                for row in keys:
+                    self.store.delete(row["r2_key"])
+                conn.execute(
+                    "DELETE FROM assets WHERE topic_id IN (SELECT id FROM topics WHERE category_id = ?)",
+                    (category["id"],),
+                )
+                conn.execute("DELETE FROM topics WHERE category_id = ?", (category["id"],))
+                conn.execute("DELETE FROM categories WHERE id = ?", (category["id"],))
+            self._persist()
+        return {"slug": category["slug"], "name": category["name"]}
 
     def category(self, slug):
         with self.connect() as conn:

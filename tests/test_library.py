@@ -26,28 +26,32 @@ class LibraryApiTest(unittest.TestCase):
         self.tmp.cleanup()
 
     def test_seed_and_search_and_separate_objects(self):
+        self.client.post(
+            "/api/categories",
+            headers={**self.headers, "Content-Type": "application/json"},
+            json={"name": "Ancient Egypt / Archaeology"},
+        )
+        self.client.post(
+            "/api/topics",
+            headers={**self.headers, "Content-Type": "application/json"},
+            json={"category": "Ancient Egypt / Archaeology", "topics": ["Egyptian Pyramids", "Great Sphinx"]},
+        )
         categories = self.client.get("/api/categories", headers=self.headers).get_json()["categories"]
         names = {row["name"] for row in categories}
-        self.assertEqual(names, {"Royal Family", "Space", "War"})
-        royal = next(row for row in categories if row["name"] == "Royal Family")
-        self.assertGreaterEqual(royal["people"], 35)
-        topics = self.client.get("/api/topics?category=royal-family", headers=self.headers).get_json()["topics"]
-        self.assertEqual(topics[0]["name"], "King Charles")
-        self.assertEqual(topics[1]["name"], "Queen Camilla")
-        self.assertEqual(royal["clips"], 0)
+        self.assertEqual(names, {"Ancient Egypt / Archaeology"})
 
-        denied = self.client.get("/api/search?q=charles")
+        denied = self.client.get("/api/search?q=pyramids")
         self.assertEqual(denied.status_code, 401)
 
-        found = self.client.get("/api/search?q=charles", headers=self.headers).get_json()
-        self.assertTrue(any(topic["name"] == "King Charles" for topic in found["topics"]))
+        found = self.client.get("/api/search?q=pyramids", headers=self.headers).get_json()
+        self.assertTrue(any(topic["name"] == "Egyptian Pyramids" for topic in found["topics"]))
 
         first = self.client.post(
             "/api/clips",
             headers=self.headers,
             data={
-                "category": "Royal Family",
-                "topic": "King Charles",
+                "category": "Ancient Egypt / Archaeology",
+                "topic": "Egyptian Pyramids",
                 "title": "Arrival",
                 "kind": "clip",
                 "file": (io.BytesIO(b"clip-one"), "arrival.mp4"),
@@ -58,8 +62,8 @@ class LibraryApiTest(unittest.TestCase):
             "/api/clips",
             headers=self.headers,
             data={
-                "category": "royal-family",
-                "topic": "king-charles",
+                "category": "ancient-egypt-archaeology",
+                "topic": "egyptian-pyramids",
                 "kind": "image",
                 "file": (io.BytesIO(b"image-bytes"), "portrait.jpg"),
             },
@@ -70,12 +74,12 @@ class LibraryApiTest(unittest.TestCase):
         clip = first.get_json()
         image = second.get_json()
         self.assertNotEqual(clip["r2_key"], image["r2_key"])
-        self.assertTrue(clip["r2_key"].startswith("media/royal-family/king-charles/"))
+        self.assertTrue(clip["r2_key"].startswith("media/ancient-egypt-archaeology/egyptian-pyramids/"))
         self.assertEqual(clip["kind"], "clip")
         self.assertEqual(image["kind"], "image")
 
         listed = self.client.get(
-            "/api/clips?category=royal-family&topic=king-charles&kind=clip",
+            "/api/clips?category=ancient-egypt-archaeology&topic=egyptian-pyramids&kind=clip",
             headers=self.headers,
         ).get_json()["clips"]
         self.assertEqual(len(listed), 1)
@@ -88,18 +92,23 @@ class LibraryApiTest(unittest.TestCase):
         created = self.client.post(
             "/api/topics",
             headers={**self.headers, "Content-Type": "application/json"},
-            json={"category": "Space", "topics": ["Launch", "Crew"]},
+            json={"category": "Ancient Egypt / Archaeology", "topics": ["Nile River"]},
         )
         self.assertEqual(created.status_code, 201)
-        space = self.client.get("/api/topics?category=space", headers=self.headers).get_json()["topics"]
-        self.assertEqual({row["name"] for row in space}, {"Launch", "Crew"})
+        topics = self.client.get("/api/topics?category=ancient-egypt-archaeology", headers=self.headers).get_json()["topics"]
+        self.assertIn("Nile River", {row["name"] for row in topics})
+
+        removed = self.client.delete("/api/categories/ancient-egypt-archaeology", headers=self.headers)
+        self.assertEqual(removed.status_code, 200)
+        left = self.client.get("/api/categories", headers=self.headers).get_json()["categories"]
+        self.assertEqual(left, [])
 
         page = self.client.get("/")
         self.assertEqual(page.status_code, 302)
         self.client.post("/login", data={"password": "test-password"})
         home = self.client.get("/")
-        self.assertIn(b"Royal Family", home.data)
-        self.assertIn(b"raw clips", home.data)
+        self.assertIn(b"Media Library", home.data)
+        self.assertNotIn(b"Ancient Egypt", home.data)
 
     def test_import_registers_separate_keys(self):
         self.client.post(

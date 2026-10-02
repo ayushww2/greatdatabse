@@ -116,6 +116,16 @@ def library_home():
     )
 
 
+@app.delete("/api/categories/<slug>")
+@api_required
+def api_delete_category(slug):
+    try:
+        removed = get_library().delete_category(slug)
+    except LibraryError as exc:
+        return jsonify({"error": str(exc)}), exc.status
+    return jsonify(removed)
+
+
 @app.post("/categories")
 @login_required
 def add_category():
