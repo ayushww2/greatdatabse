@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block body %}
+  <h1>Media Library</h1>
+  <p class="sub">Sign in to browse categories and clips.</p>
+  <form class="card stack" method="post" action="{{ url_for('login') }}" style="max-width:420px">
+    <label for="password">Password</label>
+    <input id="password" name="password" type="password" autocomplete="current-password" required>
+    <button type="submit">Open</button>
+  </form>
+{% endblock %}

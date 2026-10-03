@@ -1,0 +1,138 @@
+{% extends "base.html" %}
+{% block body %}
+<style>
+  .review-head { display:flex; justify-content:space-between; gap:16px; align-items:flex-end; margin-bottom:14px; }
+  .back { color:var(--muted); font-size:13px; }
+  .review { display:grid; grid-template-columns: minmax(0, 1fr) minmax(520px, 46vw); gap:18px; align-items:start; }
+  .clip-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(190px, 1fr)); gap:10px; }
+  .clip-card { display:block; width:100%; text-align:left; background:#12161d; border:1px solid var(--line); border-radius:12px; padding:0; overflow:hidden; color:inherit; cursor:pointer; }
+  .clip-card.selected { border-color:#60a5fa; box-shadow:0 0 0 1px #60a5fa; }
+  .thumb { position:relative; aspect-ratio:16/9; background:#07090d; }
+  .thumb video { width:100%; height:100%; object-fit:cover; display:block; background:#07090d; }
+  .rank { position:absolute; left:8px; top:8px; background:rgba(0,0,0,.72); color:white; border-radius:999px; padding:2px 8px; font-size:12px; font-weight:700; }
+  .clip-meta { padding:8px 10px 10px; }
+  .clip-meta strong { display:block; font-size:12px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .clip-meta span { color:var(--muted); font-size:12px; }
+  .player-panel { position:sticky; top:16px; width:100%; background:#12161d; border:1px solid var(--line); border-radius:16px; padding:12px; }
+  .stage { width:100%; aspect-ratio:16/9; height:auto; object-fit:contain; background:#000; border-radius:12px; display:block; }
+  .now-title { margin:12px 4px 4px; font-size:16px; font-weight:700; }
+  .facts { margin:0 4px 8px; color:var(--muted); font-size:13px; display:grid; gap:4px; }
+  .facts b { color:var(--text); font-weight:600; }
+  .filter { max-width:280px; }
+  details.uploader { margin-top:18px; }
+  @media (max-width: 1100px) {
+    .review { grid-template-columns:1fr; }
+    .player-panel { position:static; }
+    .stage { height:auto; }
+  }
+</style>
+<div class="review-head">
+  <div>
+    <a class="back" href="{{ url_for('category_page', slug=category.slug) }}">Back</a>
+    <h1>{{ topic.name }}</h1>
+    <p class="sub">{{ category.name }} · {{ assets|length }} clip{{ '' if assets|length == 1 else 's' }}</p>
+  </div>
+  <input id="clip-filter" class="search filter" type="text" placeholder="Search clips">
+</div>
+<div class="review">
+  <div>
+    {% if assets %}
+    <div class="clip-grid" id="clip-grid">
+      {% for asset in assets %}
+      <button type="button" class="clip-card" data-rank="{{ asset.rank }}" data-src="{{ asset.file_url }}" data-name="{{ asset.filename }}" data-title="{{ asset.title }}" data-size="{{ asset.size_label }}" data-kind="{{ asset.kind }}">
+        <div class="thumb">
+          {% if asset.kind == 'image' %}
+          <img alt="" loading="lazy" src="{{ asset.file_url }}" style="width:100%;height:100%;object-fit:cover">
+          {% else %}
+          <video muted playsinline preload="none" data-lazy="{{ asset.file_url }}#t=0.1"></video>
+          {% endif %}
+          <span class="rank">#{{ asset.rank }}</span>
+        </div>
+        <div class="clip-meta">
+          <strong>#{{ asset.rank }} {{ asset.filename }}</strong>
+          <span>{{ asset.size_label }}</span>
+        </div>
+      </button>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="card"><div class="meta">No clips stored for this topic yet.</div></div>
+    {% endif %}
+  </div>
+  <section class="player-panel">
+    <video id="stage" class="stage" controls playsinline preload="metadata"></video>
+    <div class="now-title" id="now-title">Select a clip</div>
+    <div class="facts">
+      <div>Category <b id="now-category">{{ topic.name }}</b></div>
+      <div>Type <b id="now-kind">Clip</b></div>
+      <div>Size <b id="now-size">—</b></div>
+    </div>
+  </section>
+</div>
+<details class="uploader">
+  <summary>Upload another clip</summary>
+  <form class="card stack" method="post" action="{{ url_for('upload_clip') }}" enctype="multipart/form-data">
+    <input type="hidden" name="category" value="{{ category.slug }}">
+    <input type="hidden" name="topic" value="{{ topic.slug }}">
+    <input name="file" type="file" required>
+    <div class="row">
+      <input name="title" type="text" placeholder="Title">
+      <select name="kind">
+        <option value="">Detect from file</option>
+        <option value="clip">Raw clip</option>
+        <option value="image">Image</option>
+      </select>
+      <button type="submit">Upload</button>
+    </div>
+  </form>
+</details>
+<script>
+  const stage = document.getElementById("stage");
+  const cards = [...document.querySelectorAll(".clip-card")];
+  function select(card, play) {
+    cards.forEach((item) => item.classList.toggle("selected", item === card));
+    const src = card.dataset.src;
+    if (stage.dataset.current !== src) {
+      stage.src = src;
+      stage.dataset.current = src;
+    }
+    document.getElementById("now-title").textContent = "#" + card.dataset.rank + "  " + card.dataset.name;
+    document.getElementById("now-kind").textContent = card.dataset.kind === "image" ? "Image" : "Clip";
+    document.getElementById("now-size").textContent = card.dataset.size;
+    if (play) stage.play();
+  }
+  cards.forEach((card) => card.addEventListener("click", () => select(card, true)));
+  document.getElementById("clip-filter").addEventListener("input", (event) => {
+    const query = event.target.value.toLowerCase();
+    cards.forEach((card) => {
+      const text = (card.dataset.name + " " + card.dataset.title + " " + card.dataset.rank).toLowerCase();
+      card.style.display = text.includes(query) ? "" : "none";
+    });
+  });
+  const thumbs = [...document.querySelectorAll(".thumb video")];
+  const pending = [];
+  let loading = 0;
+  function pump() {
+    while (loading < 3 && pending.length) {
+      const video = pending.shift();
+      loading += 1;
+      const done = () => { loading -= 1; pump(); };
+      video.addEventListener("loadeddata", done, {once: true});
+      video.addEventListener("error", done, {once: true});
+      video.preload = "metadata";
+      video.src = video.dataset.lazy;
+    }
+  }
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach((entry) => {
+      if (!entry.isIntersecting) return;
+      const video = entry.target;
+      observer.unobserve(video);
+      if (!video.src) pending.push(video);
+    });
+    pump();
+  }, { rootMargin: "120px" });
+  if (cards[0]) select(cards[0], false);
+  setTimeout(() => thumbs.forEach((video) => observer.observe(video)), 200);
+</script>
+{% endblock %}

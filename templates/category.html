@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block body %}
+  <h1>{{ category.name }}</h1>
+  <p class="sub">{{ topics|length }} people · {{ images }} images · {{ clips }} raw clips</p>
+  <form method="get" class="card">
+    <input class="search" name="q" value="{{ query }}" placeholder="Search topics in {{ category.name }}...">
+  </form>
+  <div class="grid panel">
+    {% for topic in topics %}
+      <a class="topic" href="{{ url_for('topic_page', category_slug=category.slug, topic_slug=topic.slug) }}">
+        <h3>{{ topic.name }}</h3>
+        <div class="meta">{{ topic.images }} images · {{ topic.clips }} raw clips</div>
+      </a>
+    {% else %}
+      <div class="meta">No topics in this category yet.</div>
+    {% endfor %}
+  </div>
+  <form class="card stack panel" method="post" action="{{ url_for('add_topic', slug=category.slug) }}">
+    <strong>Add topics</strong>
+    <textarea name="names" rows="4" placeholder="One topic per line" required></textarea>
+    <button type="submit">Add topics</button>
+  </form>
+{% endblock %}

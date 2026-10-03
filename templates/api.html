@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block body %}
+  <h1>API Access</h1>
+  <p class="sub">Other software can search and pull a specific clip. Send the library password as <code>X-API-Key</code>.</p>
+  <div class="card">
+    <p><code>GET {{ base }}/api/categories</code></p>
+    <p><code>GET {{ base }}/api/topics?category=royal-family&amp;q=charles</code></p>
+    <p><code>GET {{ base }}/api/search?q=william</code></p>
+    <p><code>GET {{ base }}/api/clips?category=royal-family&amp;topic=prince-william&amp;kind=clip</code></p>
+    <p><code>GET {{ base }}/api/clips/&lt;id&gt;/file</code></p>
+    <p><code>POST {{ base }}/api/clips</code> with multipart fields <code>file</code>, <code>category</code>, <code>topic</code>, optional <code>kind</code>, <code>title</code>, <code>tags</code></p>
+    <p><code>POST {{ base }}/api/categories</code> JSON <code>{"name":"Space"}</code></p>
+    <p><code>POST {{ base }}/api/topics</code> JSON <code>{"category":"Space","topics":["Launch","Crew"]}</code></p>
+  </div>
+{% endblock %}
