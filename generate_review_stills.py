@@ -180,23 +180,30 @@ def api(method, url, body=None):
     raise RuntimeError("api retries exhausted")
 
 
-def generate_one(category, topic, index, count):
+def create_generation(category, topic, index, count):
     key = object_key(category, topic, index)
     try:
         s3.head_object(Bucket=BUCKET, Key=key)
-        return key, "exists"
+        return {"r2_key": key, "status": "exists"}
     except Exception:
         pass
-    prompt = prompt_for(topic, index)
     created = api("POST", API, {
         "model_id": MODEL_ID,
-        "prompt": prompt,
+        "prompt": prompt_for(topic, index),
         "aspect_ratio": ASPECT_RATIO,
         "quality": QUALITY,
         "resolution": RESOLUTION,
     })
-    generation_id = created["id"]
-    deadline = time.time() + 240
+    return {"r2_key": key, "id": created["id"], "status": "submitted"}
+
+
+def finish_generation(item):
+    key = item["r2_key"]
+    if item.get("status") == "exists":
+        mark_done(key)
+        return key, "exists"
+    generation_id = item["id"]
+    deadline = time.time() + 300
     while time.time() < deadline:
         data = api("GET", f"{API}/{generation_id}")
         status = data.get("status")
@@ -217,11 +224,10 @@ def main():
     done = load_done()
     pending = [item for item in planned if object_key(*item[:3]) not in done]
     log(f"plan {len(planned)} stills, already stored {len(planned) - len(pending)}, workers {WORKERS}, quality {QUALITY}, resolution {RESOLUTION}")
-    stored = 0
-    failed = 0
+    prompt_count = 0
     for start in range(0, len(pending), BATCH):
         batch = pending[start:start + BATCH]
-        prompts_path = os.path.join(STATE, f"prompts-{start // BATCH + 1:03d}.jsonl")
+        prompts_path = os.path.join(STATE, f"prompts-all-{start // BATCH + 1:03d}.jsonl")
         with open(prompts_path, "w") as handle:
             for category, topic, index, count in batch:
                 handle.write(json.dumps({
@@ -232,22 +238,45 @@ def main():
                     "prompt": prompt_for(topic, index),
                     "r2_key": object_key(category, topic, index),
                 }) + "\n")
-        log(f"batch {start // BATCH + 1} prompts ready: {len(batch)}")
-        with ThreadPoolExecutor(max_workers=WORKERS) as pool:
-            futures = [pool.submit(generate_one, *item) for item in batch]
-            for future in as_completed(futures):
-                try:
-                    key, status = future.result()
-                    stored += 1
-                    if stored % 25 == 0:
-                        log(f"progress stored {stored} failed {failed} last {key} {status}")
-                except Exception as exc:
-                    failed += 1
-                    log(f"image failed {exc}")
-        log(f"batch {start // BATCH + 1} finished, stored {stored}, failed {failed}")
-        manifest = os.path.join(STATE, "manifest.jsonl")
-        if os.path.exists(manifest):
-            s3.upload_file(manifest, BUCKET, f"{PREFIX}/manifest.jsonl", ExtraArgs={"ContentType": "application/json"})
+        prompt_count += len(batch)
+        log(f"prompts ready {prompt_count}/{len(pending)}")
+    log(f"submitting {len(pending)} image requests")
+    submitted = []
+    failed = 0
+    with ThreadPoolExecutor(max_workers=WORKERS) as pool:
+        futures = [pool.submit(create_generation, *item) for item in pending]
+        for future in as_completed(futures):
+            try:
+                submitted.append(future.result())
+                if len(submitted) % 100 == 0:
+                    log(f"requests sent {len(submitted)}/{len(pending)}")
+            except Exception as exc:
+                failed += 1
+                log(f"request failed {exc}")
+    inflight = [item for item in submitted if item.get("id")]
+    log(f"all requests sent: {len(inflight)} new, {len(submitted) - len(inflight)} already on R2, {failed} failed to send")
+    with open(os.path.join(STATE, "inflight.jsonl"), "w") as handle:
+        for item in inflight:
+            handle.write(json.dumps(item) + "\n")
+    stored = 0
+    with ThreadPoolExecutor(max_workers=WORKERS) as pool:
+        futures = [pool.submit(finish_generation, item) for item in submitted]
+        for future in as_completed(futures):
+            try:
+                key, status = future.result()
+                stored += 1
+                if stored % 50 == 0:
+                    log(f"progress stored {stored} failed {failed} last {key} {status}")
+            except Exception as exc:
+                failed += 1
+                log(f"image failed {exc}")
+            if stored % 100 == 0:
+                manifest = os.path.join(STATE, "manifest.jsonl")
+                if os.path.exists(manifest):
+                    s3.upload_file(manifest, BUCKET, f"{PREFIX}/manifest.jsonl", ExtraArgs={"ContentType": "application/json"})
+    manifest = os.path.join(STATE, "manifest.jsonl")
+    if os.path.exists(manifest):
+        s3.upload_file(manifest, BUCKET, f"{PREFIX}/manifest.jsonl", ExtraArgs={"ContentType": "application/json"})
     log(f"finished stored {stored} failed {failed}")
 
 
