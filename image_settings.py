@@ -2,5 +2,5 @@
 
 MODEL_ID = "gpt-image-2"
 ASPECT_RATIO = "16:9"
-QUALITY = "low"
+QUALITY = "medium"
 RESOLUTION = "1K"
