@@ -471,7 +471,8 @@ class Library:
             sql += " AND (a.title LIKE ? OR a.filename LIKE ? OR a.tags LIKE ? OR t.name LIKE ? OR c.name LIKE ?)"
             like = f"%{query}%"
             params.extend([like, like, like, like, like])
-        sql += " ORDER BY a.created_at " + ("DESC" if newest_first else "ASC") + " LIMIT ? OFFSET ?"
+        direction = "DESC" if newest_first else "ASC"
+        sql += f" ORDER BY a.created_at {direction}, a.rowid {direction} LIMIT ? OFFSET ?"
         params.extend([int(limit), int(offset)])
         with self.connect() as conn:
             rows = conn.execute(sql, params).fetchall()
