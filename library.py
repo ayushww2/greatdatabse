@@ -17,6 +17,11 @@ def slugify(value):
     return slug or "item"
 
 
+def preview_object_key(r2_key):
+    base, _ext = os.path.splitext(r2_key or "")
+    return f"preview/{base}.jpg"
+
+
 def now():
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
@@ -200,7 +205,9 @@ class Library:
         sql = """
             SELECT t.*, c.slug AS category_slug, c.name AS category_name,
                 (SELECT COUNT(*) FROM assets a WHERE a.topic_id = t.id AND a.kind = 'image') AS images,
-                (SELECT COUNT(*) FROM assets a WHERE a.topic_id = t.id AND a.kind = 'clip') AS clips
+                (SELECT COUNT(*) FROM assets a WHERE a.topic_id = t.id AND a.kind = 'clip') AS clips,
+                (SELECT a.id FROM assets a WHERE a.topic_id = t.id AND a.kind = 'image'
+                    ORDER BY a.created_at, a.rowid LIMIT 1) AS cover_id
             FROM topics t
             JOIN categories c ON c.id = t.category_id
             WHERE 1 = 1
@@ -370,6 +377,9 @@ class Library:
             tags = item.get("tags") or []
             if isinstance(tags, str):
                 tags = [tag.strip() for tag in tags.split(",") if tag.strip()]
+            stamp = item.get("created_at") or ""
+            if not re.fullmatch(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z", stamp):
+                stamp = now()
             prepared.append(
                 {
                     "id": item.get("id") or str(uuid.uuid4()),
@@ -381,7 +391,7 @@ class Library:
                     "size_bytes": int(item.get("size_bytes") or 0),
                     "r2_key": item["r2_key"],
                     "tags": ", ".join(tags),
-                    "created_at": now(),
+                    "created_at": stamp,
                 }
             )
         saved = []
@@ -468,7 +478,8 @@ class Library:
             sql += " AND (a.title LIKE ? OR a.filename LIKE ? OR a.tags LIKE ? OR t.name LIKE ? OR c.name LIKE ?)"
             like = f"%{query}%"
             params.extend([like, like, like, like, like])
-        sql += " ORDER BY a.created_at " + ("DESC" if newest_first else "ASC") + " LIMIT ? OFFSET ?"
+        direction = "DESC" if newest_first else "ASC"
+        sql += f" ORDER BY a.created_at {direction}, a.rowid {direction} LIMIT ? OFFSET ?"
         params.extend([int(limit), int(offset)])
         with self.connect() as conn:
             rows = conn.execute(sql, params).fetchall()

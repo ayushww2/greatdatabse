@@ -8,7 +8,11 @@
   .clip-card { display:block; width:100%; text-align:left; background:#12161d; border:1px solid var(--line); border-radius:12px; padding:0; overflow:hidden; color:inherit; cursor:pointer; }
   .clip-card.selected { border-color:#60a5fa; box-shadow:0 0 0 1px #60a5fa; }
   .thumb { position:relative; aspect-ratio:16/9; background:#07090d; }
-  .thumb video { width:100%; height:100%; object-fit:cover; display:block; background:#07090d; }
+  .thumb video, .thumb img { width:100%; height:100%; object-fit:cover; display:block; background:#07090d; }
+  .image-review { display:block; }
+  .image-review .player-panel { position:sticky; top:8px; z-index:3; margin-bottom:16px; max-width:1120px; }
+  .image-review .clip-grid { grid-template-columns:repeat(auto-fill, minmax(260px, 1fr)); gap:12px; }
+  .image-review .rank { font-size:14px; padding:4px 10px; }
   .rank { position:absolute; left:8px; top:8px; background:rgba(0,0,0,.72); color:white; border-radius:999px; padding:2px 8px; font-size:12px; font-weight:700; }
   .clip-meta { padding:8px 10px 10px; }
   .clip-meta strong { display:block; font-size:12px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
@@ -30,19 +34,19 @@
   <div>
     <a class="back" href="{{ url_for('category_page', slug=category.slug) }}">Back</a>
     <h1>{{ topic.name }}</h1>
-    <p class="sub">{{ category.name }} · {{ assets|length }} clip{{ '' if assets|length == 1 else 's' }}</p>
+    <p class="sub">{{ category.name }} · {% if images and not clips %}{{ images }} image{{ '' if images == 1 else 's' }}{% elif clips and not images %}{{ clips }} clip{{ '' if clips == 1 else 's' }}{% else %}{{ assets|length }} items{% endif %}</p>
   </div>
-  <input id="clip-filter" class="search filter" type="text" placeholder="Search clips">
+  <input id="clip-filter" class="search filter" type="text" placeholder="Search">
 </div>
-<div class="review">
+<div class="review{% if image_only %} image-review{% endif %}">
   <div>
     {% if assets %}
     <div class="clip-grid" id="clip-grid">
       {% for asset in assets %}
-      <button type="button" class="clip-card" data-rank="{{ asset.rank }}" data-src="{{ asset.file_url }}" data-name="{{ asset.filename }}" data-title="{{ asset.title }}" data-size="{{ asset.size_label }}" data-kind="{{ asset.kind }}">
+      <button type="button" class="clip-card" data-rank="{{ asset.rank }}" data-src="{{ asset.file_url }}" data-preview="{{ asset.file_url }}?preview=1" data-name="{{ asset.filename }}" data-title="{{ asset.title }}" data-size="{{ asset.size_label }}" data-kind="{{ asset.kind }}">
         <div class="thumb">
           {% if asset.kind == 'image' %}
-          <img alt="" loading="lazy" src="{{ asset.file_url }}" style="width:100%;height:100%;object-fit:cover">
+          <img alt="{{ asset.title }}" src="{{ asset.file_url }}?preview=1" decoding="async"{% if loop.index <= 8 %} fetchpriority="high"{% endif %}>
           {% else %}
           <video muted playsinline preload="none" data-lazy="{{ asset.file_url }}#t=0.1"></video>
           {% endif %}
@@ -56,11 +60,12 @@
       {% endfor %}
     </div>
     {% else %}
-    <div class="card"><div class="meta">No clips stored for this topic yet.</div></div>
+    <div class="card"><div class="meta">Nothing stored for this topic yet.</div></div>
     {% endif %}
   </div>
   <section class="player-panel">
     <video id="stage" class="stage" controls playsinline preload="metadata"></video>
+    <img id="stage-image" class="stage" alt="" hidden>
     <div class="now-title" id="now-title">Select a clip</div>
     <div class="facts">
       <div>Category <b id="now-category">{{ topic.name }}</b></div>
@@ -89,17 +94,40 @@
 <script>
   const stage = document.getElementById("stage");
   const cards = [...document.querySelectorAll(".clip-card")];
+  const stageImage = document.getElementById("stage-image");
   function select(card, play) {
     cards.forEach((item) => item.classList.toggle("selected", item === card));
     const src = card.dataset.src;
-    if (stage.dataset.current !== src) {
-      stage.src = src;
-      stage.dataset.current = src;
+    const isImage = card.dataset.kind === "image";
+    if (isImage) {
+      stage.pause();
+      stage.removeAttribute("src");
+      stage.style.display = "none";
+      stageImage.hidden = false;
+      stageImage.dataset.showing = card.dataset.rank;
+      stageImage.src = card.dataset.preview || src;
+      if ((card.dataset.preview || src) !== src) {
+        const full = new Image();
+        const rank = card.dataset.rank;
+        full.onload = () => {
+          if (stageImage.dataset.showing === rank) stageImage.src = src;
+        };
+        full.src = src;
+      }
+      stage.dataset.current = "";
+    } else {
+      stageImage.hidden = true;
+      stageImage.removeAttribute("src");
+      stage.style.display = "";
+      if (stage.dataset.current !== src) {
+        stage.src = src;
+        stage.dataset.current = src;
+      }
+      if (play) stage.play();
     }
     document.getElementById("now-title").textContent = "#" + card.dataset.rank + "  " + card.dataset.name;
-    document.getElementById("now-kind").textContent = card.dataset.kind === "image" ? "Image" : "Clip";
+    document.getElementById("now-kind").textContent = isImage ? "Image" : "Clip";
     document.getElementById("now-size").textContent = card.dataset.size;
-    if (play) stage.play();
   }
   cards.forEach((card) => card.addEventListener("click", () => select(card, true)));
   document.getElementById("clip-filter").addEventListener("input", (event) => {

@@ -7,8 +7,8 @@ os.environ["LIBRARY_STORE"] = "memory"
 os.environ["ACCESS_PASSWORD"] = "test-password"
 os.environ["SECRET_KEY"] = "test"
 
-from main import app
-from library import Library, is_landscape_16_9
+from main import app, get_library
+from library import Library, is_landscape_16_9, preview_object_key
 from storage import MemoryStore
 
 
@@ -138,6 +138,44 @@ class LibraryApiTest(unittest.TestCase):
         clip = created.get_json()["clips"][0]
         self.assertEqual(clip["topic"]["name"], "Egyptian Pyramids")
         self.assertEqual(clip["tags"], ["source:111"])
+
+        images = self.client.post(
+            "/api/clips/import",
+            headers={**self.headers, "Content-Type": "application/json"},
+            json={
+                "assets": [
+                    {
+                        "category": "Ancient Egypt / Archaeology",
+                        "topic": "Egyptian Pyramids",
+                        "kind": "image",
+                        "title": "Pyramids 1",
+                        "filename": "0001.png",
+                        "content_type": "image/png",
+                        "size_bytes": 8,
+                        "r2_key": "review-stills/ancient-egypt-archaeology/egyptian-pyramids/0001.png",
+                        "created_at": "2026-10-03T00:00:01Z",
+                    }
+                ]
+            },
+        )
+        self.assertEqual(images.status_code, 201, images.get_data(as_text=True))
+        image = images.get_json()["clips"][0]
+        self.assertEqual(image["kind"], "image")
+        self.assertEqual(image["created_at"], "2026-10-03T00:00:01Z")
+        self.assertEqual(image["r2_key"], "review-stills/ancient-egypt-archaeology/egyptian-pyramids/0001.png")
+        self.assertEqual(
+            preview_object_key(image["r2_key"]),
+            "preview/review-stills/ancient-egypt-archaeology/egyptian-pyramids/0001.jpg",
+        )
+        store = get_library().store
+        store.put_bytes(image["r2_key"], b"full-png", "image/png")
+        store.put_bytes(preview_object_key(image["r2_key"]), b"small-jpg", "image/jpeg")
+        preview = self.client.get(image["file_url"] + "?preview=1", headers=self.headers)
+        self.assertEqual(preview.status_code, 200)
+        self.assertEqual(preview.data, b"small-jpg")
+        self.assertEqual(preview.headers["Content-Type"], "image/jpeg")
+        full = self.client.get(image["file_url"], headers=self.headers)
+        self.assertEqual(full.data, b"full-png")
 
     def test_only_landscape_16_9(self):
         self.assertTrue(is_landscape_16_9(1920, 1080))

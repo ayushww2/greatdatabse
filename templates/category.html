@@ -1,13 +1,17 @@
 {% extends "base.html" %}
 {% block body %}
+<style>
+  .topic .cover { display:block; width:calc(100% + 32px); aspect-ratio:16/9; object-fit:cover; border-radius:14px 14px 0 0; margin:-16px -16px 12px; background:#10141b; }
+</style>
   <h1>{{ category.name }}</h1>
-  <p class="sub">{{ topics|length }} people · {{ images }} images · {{ clips }} raw clips</p>
+  <p class="sub">{{ topics|length }} topics · {{ images }} images · {{ clips }} raw clips</p>
   <form method="get" class="card">
     <input class="search" name="q" value="{{ query }}" placeholder="Search topics in {{ category.name }}...">
   </form>
   <div class="grid panel">
     {% for topic in topics %}
       <a class="topic" href="{{ url_for('topic_page', category_slug=category.slug, topic_slug=topic.slug) }}">
+        {% if topic.cover_id %}<img class="cover" alt="" src="{{ url_for('api_clip_file', asset_id=topic.cover_id, preview=1) }}" decoding="async">{% endif %}
         <h3>{{ topic.name }}</h3>
         <div class="meta">{{ topic.images }} images · {{ topic.clips }} raw clips</div>
       </a>
