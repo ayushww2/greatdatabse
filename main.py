@@ -4,7 +4,7 @@ from io import BytesIO
 
 from flask import Flask, Response, jsonify, redirect, render_template, request, session, url_for
 
-from library import Library, LibraryError
+from library import Library, LibraryError, preview_object_key
 from storage import MemoryStore, R2Store, r2_client
 
 app = Flask(__name__)
@@ -210,6 +210,7 @@ def topic_page(category_slug, topic_slug):
         assets=assets,
         images=sum(1 for asset in assets if asset["kind"] == "image"),
         clips=sum(1 for asset in assets if asset["kind"] == "clip"),
+        image_only=bool(assets) and all(asset["kind"] == "image" for asset in assets),
     )
 
 
@@ -414,14 +415,29 @@ def api_delete_clip(asset_id):
 @app.get("/api/clips/<asset_id>/file")
 @api_required
 def api_clip_file(asset_id):
+    library = get_library()
     try:
-        record, body, status, headers = get_library().open_asset(asset_id, request.headers.get("Range"))
+        record = library.asset(asset_id)
+    except LibraryError as exc:
+        return jsonify({"error": str(exc)}), exc.status
+    preview = request.args.get("preview") and record["kind"] == "image"
+    try:
+        if preview:
+            try:
+                body, status, headers = library.store.get(preview_object_key(record["r2_key"]))
+                headers["Content-Type"] = "image/jpeg"
+                record = {**record, "filename": os.path.splitext(record["filename"])[0] + ".jpg"}
+            except Exception:
+                record, body, status, headers = library.open_asset(asset_id, request.headers.get("Range"))
+        else:
+            record, body, status, headers = library.open_asset(asset_id, request.headers.get("Range"))
     except LibraryError as exc:
         return jsonify({"error": str(exc)}), exc.status
     except KeyError:
         return jsonify({"error": "File missing from R2."}), 404
     disposition = "attachment" if request.args.get("download") else "inline"
     headers["Content-Disposition"] = f'{disposition}; filename="{record["filename"]}"'
+    headers["Cache-Control"] = "private, max-age=86400"
     if isinstance(body, (bytes, bytearray)):
         stream = BytesIO(body)
     else:

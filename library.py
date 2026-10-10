@@ -17,6 +17,11 @@ def slugify(value):
     return slug or "item"
 
 
+def preview_object_key(r2_key):
+    base, _ext = os.path.splitext(r2_key or "")
+    return f"preview/{base}.jpg"
+
+
 def now():
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
@@ -200,7 +205,9 @@ class Library:
         sql = """
             SELECT t.*, c.slug AS category_slug, c.name AS category_name,
                 (SELECT COUNT(*) FROM assets a WHERE a.topic_id = t.id AND a.kind = 'image') AS images,
-                (SELECT COUNT(*) FROM assets a WHERE a.topic_id = t.id AND a.kind = 'clip') AS clips
+                (SELECT COUNT(*) FROM assets a WHERE a.topic_id = t.id AND a.kind = 'clip') AS clips,
+                (SELECT a.id FROM assets a WHERE a.topic_id = t.id AND a.kind = 'image'
+                    ORDER BY a.created_at, a.rowid LIMIT 1) AS cover_id
             FROM topics t
             JOIN categories c ON c.id = t.category_id
             WHERE 1 = 1
