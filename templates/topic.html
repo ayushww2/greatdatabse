@@ -30,9 +30,9 @@
   <div>
     <a class="back" href="{{ url_for('category_page', slug=category.slug) }}">Back</a>
     <h1>{{ topic.name }}</h1>
-    <p class="sub">{{ category.name }} · {{ assets|length }} clip{{ '' if assets|length == 1 else 's' }}</p>
+    <p class="sub">{{ category.name }} · {% if images and not clips %}{{ images }} image{{ '' if images == 1 else 's' }}{% elif clips and not images %}{{ clips }} clip{{ '' if clips == 1 else 's' }}{% else %}{{ assets|length }} items{% endif %}</p>
   </div>
-  <input id="clip-filter" class="search filter" type="text" placeholder="Search clips">
+  <input id="clip-filter" class="search filter" type="text" placeholder="Search">
 </div>
 <div class="review">
   <div>
@@ -56,11 +56,12 @@
       {% endfor %}
     </div>
     {% else %}
-    <div class="card"><div class="meta">No clips stored for this topic yet.</div></div>
+    <div class="card"><div class="meta">Nothing stored for this topic yet.</div></div>
     {% endif %}
   </div>
   <section class="player-panel">
     <video id="stage" class="stage" controls playsinline preload="metadata"></video>
+    <img id="stage-image" class="stage" alt="" hidden>
     <div class="now-title" id="now-title">Select a clip</div>
     <div class="facts">
       <div>Category <b id="now-category">{{ topic.name }}</b></div>
@@ -89,17 +90,31 @@
 <script>
   const stage = document.getElementById("stage");
   const cards = [...document.querySelectorAll(".clip-card")];
+  const stageImage = document.getElementById("stage-image");
   function select(card, play) {
     cards.forEach((item) => item.classList.toggle("selected", item === card));
     const src = card.dataset.src;
-    if (stage.dataset.current !== src) {
-      stage.src = src;
-      stage.dataset.current = src;
+    const isImage = card.dataset.kind === "image";
+    if (isImage) {
+      stage.pause();
+      stage.removeAttribute("src");
+      stage.style.display = "none";
+      stageImage.hidden = false;
+      stageImage.src = src;
+      stage.dataset.current = "";
+    } else {
+      stageImage.hidden = true;
+      stageImage.removeAttribute("src");
+      stage.style.display = "";
+      if (stage.dataset.current !== src) {
+        stage.src = src;
+        stage.dataset.current = src;
+      }
+      if (play) stage.play();
     }
     document.getElementById("now-title").textContent = "#" + card.dataset.rank + "  " + card.dataset.name;
-    document.getElementById("now-kind").textContent = card.dataset.kind === "image" ? "Image" : "Clip";
+    document.getElementById("now-kind").textContent = isImage ? "Image" : "Clip";
     document.getElementById("now-size").textContent = card.dataset.size;
-    if (play) stage.play();
   }
   cards.forEach((card) => card.addEventListener("click", () => select(card, true)));
   document.getElementById("clip-filter").addEventListener("input", (event) => {

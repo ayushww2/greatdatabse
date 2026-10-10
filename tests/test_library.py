@@ -139,6 +139,31 @@ class LibraryApiTest(unittest.TestCase):
         self.assertEqual(clip["topic"]["name"], "Egyptian Pyramids")
         self.assertEqual(clip["tags"], ["source:111"])
 
+        images = self.client.post(
+            "/api/clips/import",
+            headers={**self.headers, "Content-Type": "application/json"},
+            json={
+                "assets": [
+                    {
+                        "category": "Ancient Egypt / Archaeology",
+                        "topic": "Egyptian Pyramids",
+                        "kind": "image",
+                        "title": "Pyramids 1",
+                        "filename": "0001.png",
+                        "content_type": "image/png",
+                        "size_bytes": 8,
+                        "r2_key": "review-stills/ancient-egypt-archaeology/egyptian-pyramids/0001.png",
+                        "created_at": "2026-10-03T00:00:01Z",
+                    }
+                ]
+            },
+        )
+        self.assertEqual(images.status_code, 201, images.get_data(as_text=True))
+        image = images.get_json()["clips"][0]
+        self.assertEqual(image["kind"], "image")
+        self.assertEqual(image["created_at"], "2026-10-03T00:00:01Z")
+        self.assertEqual(image["r2_key"], "review-stills/ancient-egypt-archaeology/egyptian-pyramids/0001.png")
+
     def test_only_landscape_16_9(self):
         self.assertTrue(is_landscape_16_9(1920, 1080))
         self.assertTrue(is_landscape_16_9(1280, 720))

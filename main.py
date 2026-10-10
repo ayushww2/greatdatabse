@@ -198,7 +198,7 @@ def topic_page(category_slug, topic_slug):
         category = lib.category(category_slug)
     except LibraryError:
         return redirect(url_for("library_home", m="Topic not found."))
-    assets = lib.assets(category_slug=category_slug, topic_slug=topic_slug, limit=300, newest_first=False)
+    assets = lib.assets(category_slug=category_slug, topic_slug=topic_slug, limit=2000, newest_first=False)
     for index, asset in enumerate(assets, start=1):
         asset["rank"] = index
         asset["size_label"] = size_label(asset["size_bytes"])

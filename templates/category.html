@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block body %}
   <h1>{{ category.name }}</h1>
-  <p class="sub">{{ topics|length }} people · {{ images }} images · {{ clips }} raw clips</p>
+  <p class="sub">{{ topics|length }} topics · {{ images }} images · {{ clips }} raw clips</p>
   <form method="get" class="card">
     <input class="search" name="q" value="{{ query }}" placeholder="Search topics in {{ category.name }}...">
   </form>

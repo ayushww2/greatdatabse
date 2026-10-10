@@ -1,15 +1,15 @@
 {% extends "base.html" %}
 {% block body %}
   <h1>Media Library</h1>
-  <p class="sub">Each clip is its own object in the R2 bucket.</p>
+  <p class="sub">Clips and images, each stored as its own object in the R2 bucket.</p>
   <form method="get" action="{{ url_for('library_home') }}" class="card">
-    <input class="search" name="q" value="{{ query }}" placeholder="Search people, places, or topics...">
+    <input class="search" name="q" value="{{ query }}" placeholder="Search categories or topics...">
   </form>
   <div class="grid panel">
     {% for category in categories %}
       <a class="card" href="{{ url_for('category_page', slug=category.slug) }}">
         <h2>{{ category.name }}</h2>
-        <div class="meta">{{ category.people }} people · {{ category.images }} images · {{ category.clips }} raw clips</div>
+        <div class="meta">{{ category.people }} topics · {{ category.images }} images · {{ category.clips }} raw clips</div>
       </a>
     {% endfor %}
   </div>

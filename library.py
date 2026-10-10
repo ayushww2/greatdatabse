@@ -370,6 +370,9 @@ class Library:
             tags = item.get("tags") or []
             if isinstance(tags, str):
                 tags = [tag.strip() for tag in tags.split(",") if tag.strip()]
+            stamp = item.get("created_at") or ""
+            if not re.fullmatch(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z", stamp):
+                stamp = now()
             prepared.append(
                 {
                     "id": item.get("id") or str(uuid.uuid4()),
@@ -381,7 +384,7 @@ class Library:
                     "size_bytes": int(item.get("size_bytes") or 0),
                     "r2_key": item["r2_key"],
                     "tags": ", ".join(tags),
-                    "created_at": now(),
+                    "created_at": stamp,
                 }
             )
         saved = []
