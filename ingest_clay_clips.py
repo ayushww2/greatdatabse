@@ -284,13 +284,16 @@ def prepare_clip(topic, clip):
 
 
 def collect(topic, need):
+    short = " ".join(topic.split()[-2:])
     queries = [
         topic,
+        short,
+        f"ancient {short}",
+        f"{short} close up",
+        f"{short} landscape",
         f"{topic} documentary",
-        f"{topic} cinematic",
-        f"{topic} footage",
-        f"{topic} aerial",
-        f"real {topic}",
+        f"real {short}",
+        f"{short} museum",
     ]
     chosen = []
     for query in queries:
@@ -308,12 +311,13 @@ def collect(topic, need):
     return chosen
 
 
-def fill_topic(topic):
+def fill_topic(topic, already=0):
+    needed = max(0, TARGET - already)
     stored = []
-    for _round in range(6):
-        if len(stored) >= TARGET:
+    for _round in range(4):
+        if len(stored) >= needed:
             break
-        clips = collect(topic, TARGET - len(stored) + 4)
+        clips = collect(topic, needed - len(stored) + 4)
         if not clips:
             break
         for clip in clips:
@@ -327,7 +331,7 @@ def fill_topic(topic):
             stamp = datetime(2026, 10, 17, tzinfo=timezone.utc) + timedelta(seconds=index)
             item["created_at"] = stamp.strftime("%Y-%m-%dT%H:%M:%SZ")
             stored.append(item)
-            if len(stored) >= TARGET:
+            if len(stored) >= needed:
                 break
         pending = [item for item in stored if not item.get("imported")]
         for start in range(0, len(pending), 10):
@@ -350,9 +354,9 @@ def fill_topic(topic):
         stats["topics"] += 1
         done = stats["stored"]
         topics_done = stats["topics"]
-    log(f"{topic}: {len(stored)}/{TARGET} total {done} across {topics_done} topics")
+    log(f"{topic}: {already + len(stored)}/{TARGET} total {done} across {topics_done} topics")
     with open(os.path.join(STATE, "progress.jsonl"), "a") as handle:
-        handle.write(json.dumps({"topic": topic, "stored": len(stored), "target": TARGET}) + "\n")
+        handle.write(json.dumps({"topic": topic, "stored": already + len(stored), "target": TARGET}) + "\n")
     return len(stored)
 
 
@@ -370,7 +374,7 @@ def main():
     pending = [name for name in names if existing.get(name, 0) < TARGET]
     log(f"starting {len(pending)} topics, {TARGET} clips each, workers {WORKERS}")
     with ThreadPoolExecutor(max_workers=WORKERS) as pool:
-        futures = [pool.submit(fill_topic, name) for name in pending]
+        futures = [pool.submit(fill_topic, name, existing.get(name, 0)) for name in pending]
         for future in as_completed(futures):
             future.result()
     log(f"finished stored {stats['stored']}")
