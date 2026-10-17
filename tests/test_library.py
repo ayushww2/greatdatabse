@@ -177,6 +177,50 @@ class LibraryApiTest(unittest.TestCase):
         full = self.client.get(image["file_url"], headers=self.headers)
         self.assertEqual(full.data, b"full-png")
 
+    def test_topic_switches_between_images_and_clips(self):
+        self.client.post("/login", data={"password": "test-password"})
+        self.client.post(
+            "/api/categories",
+            headers={**self.headers, "Content-Type": "application/json"},
+            json={"name": "Ancient Egypt / Archaeology"},
+        )
+        self.client.post(
+            "/api/clips/import",
+            headers={**self.headers, "Content-Type": "application/json"},
+            json={
+                "assets": [
+                    {
+                        "category": "Ancient Egypt / Archaeology",
+                        "topic": "Egyptian Pyramids",
+                        "kind": "clip",
+                        "title": "Clip",
+                        "filename": "pyramids.mp4",
+                        "content_type": "video/mp4",
+                        "size_bytes": 4,
+                        "r2_key": "media/ancient-egypt-archaeology/egyptian-pyramids/b/pyramids.mp4",
+                    },
+                    {
+                        "category": "Ancient Egypt / Archaeology",
+                        "topic": "Egyptian Pyramids",
+                        "kind": "image",
+                        "title": "Still",
+                        "filename": "0001.png",
+                        "content_type": "image/png",
+                        "size_bytes": 4,
+                        "r2_key": "review-stills/ancient-egypt-archaeology/egyptian-pyramids/0001.png",
+                    },
+                ]
+            },
+        )
+        images = self.client.get("/c/ancient-egypt-archaeology/egyptian-pyramids?view=images")
+        clips = self.client.get("/c/ancient-egypt-archaeology/egyptian-pyramids?view=clips")
+        self.assertIn(b"Images 1", images.data)
+        self.assertIn(b"Clips 1", images.data)
+        self.assertIn(b"0001.png", images.data)
+        self.assertNotIn(b"pyramids.mp4", images.data)
+        self.assertIn(b"pyramids.mp4", clips.data)
+        self.assertNotIn(b"0001.png", clips.data)
+
     def test_only_landscape_16_9(self):
         self.assertTrue(is_landscape_16_9(1920, 1080))
         self.assertTrue(is_landscape_16_9(1280, 720))

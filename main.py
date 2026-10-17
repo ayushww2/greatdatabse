@@ -199,7 +199,19 @@ def topic_page(category_slug, topic_slug):
     except LibraryError:
         return redirect(url_for("library_home", m="Topic not found."))
     assets = lib.assets(category_slug=category_slug, topic_slug=topic_slug, limit=2000, newest_first=False)
-    for index, asset in enumerate(assets, start=1):
+    image_count = sum(1 for asset in assets if asset["kind"] == "image")
+    clip_count = sum(1 for asset in assets if asset["kind"] == "clip")
+    requested = request.args.get("view", "")
+    if requested == "clips":
+        selected = "clip"
+    elif requested == "images":
+        selected = "image"
+    elif image_count and not clip_count:
+        selected = "image"
+    else:
+        selected = "clip" if clip_count and not image_count else "image"
+    visible = [asset for asset in assets if asset["kind"] == selected]
+    for index, asset in enumerate(visible, start=1):
         asset["rank"] = index
         asset["size_label"] = size_label(asset["size_bytes"])
     return page(
@@ -207,10 +219,11 @@ def topic_page(category_slug, topic_slug):
         title=topic["name"],
         topic=topic,
         category=category,
-        assets=assets,
-        images=sum(1 for asset in assets if asset["kind"] == "image"),
-        clips=sum(1 for asset in assets if asset["kind"] == "clip"),
-        image_only=bool(assets) and all(asset["kind"] == "image" for asset in assets),
+        assets=visible,
+        images=image_count,
+        clips=clip_count,
+        view=selected,
+        image_only=selected == "image",
     )
 
 
@@ -420,15 +433,24 @@ def api_clip_file(asset_id):
         record = library.asset(asset_id)
     except LibraryError as exc:
         return jsonify({"error": str(exc)}), exc.status
-    preview = request.args.get("preview") and record["kind"] == "image"
+    preview = bool(request.args.get("preview"))
     try:
         if preview:
             try:
                 body, status, headers = library.store.get(preview_object_key(record["r2_key"]))
                 headers["Content-Type"] = "image/jpeg"
+                headers["Cache-Control"] = "private, max-age=604800"
                 record = {**record, "filename": os.path.splitext(record["filename"])[0] + ".jpg"}
+                disposition = "inline"
+                headers["Content-Disposition"] = f'{disposition}; filename="{record["filename"]}"'
+                stream = BytesIO(body) if isinstance(body, (bytes, bytearray)) else body
+                return Response(stream, status=status, headers=headers)
             except Exception:
+                if record["kind"] == "clip":
+                    return jsonify({"error": "Preview not ready."}), 404
                 record, body, status, headers = library.open_asset(asset_id, request.headers.get("Range"))
+        elif record["kind"] == "clip" and not request.args.get("download") and hasattr(library.store, "presign"):
+            return redirect(library.store.presign(record["r2_key"]), code=302)
         else:
             record, body, status, headers = library.open_asset(asset_id, request.headers.get("Range"))
     except LibraryError as exc:

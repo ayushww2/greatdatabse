@@ -87,6 +87,13 @@ class R2Store:
     def delete(self, key):
         self.client.delete_object(Bucket=self.bucket, Key=key)
 
+    def presign(self, key, expires=3600):
+        return self.client.generate_presigned_url(
+            "get_object",
+            Params={"Bucket": self.bucket, "Key": key},
+            ExpiresIn=expires,
+        )
+
 
 def r2_client():
     import boto3
