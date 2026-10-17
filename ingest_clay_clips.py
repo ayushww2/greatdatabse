@@ -296,7 +296,7 @@ def collect(topic, need):
     for query in queries:
         if len(chosen) >= need:
             break
-        for clip in stock_job(query, max(need * 2, 8)):
+        for clip in stock_job(query, min(10, max(need, 4))):
             source_id = str(clip.get("sourceId") or "")
             if float(clip.get("duration") or 0) < 5 or not clip.get("url"):
                 continue
