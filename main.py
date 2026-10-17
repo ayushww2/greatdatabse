@@ -199,7 +199,19 @@ def topic_page(category_slug, topic_slug):
     except LibraryError:
         return redirect(url_for("library_home", m="Topic not found."))
     assets = lib.assets(category_slug=category_slug, topic_slug=topic_slug, limit=2000, newest_first=False)
-    for index, asset in enumerate(assets, start=1):
+    image_count = sum(1 for asset in assets if asset["kind"] == "image")
+    clip_count = sum(1 for asset in assets if asset["kind"] == "clip")
+    requested = request.args.get("view", "")
+    if requested == "clips":
+        selected = "clip"
+    elif requested == "images":
+        selected = "image"
+    elif image_count and not clip_count:
+        selected = "image"
+    else:
+        selected = "clip" if clip_count and not image_count else "image"
+    visible = [asset for asset in assets if asset["kind"] == selected]
+    for index, asset in enumerate(visible, start=1):
         asset["rank"] = index
         asset["size_label"] = size_label(asset["size_bytes"])
     return page(
@@ -207,10 +219,11 @@ def topic_page(category_slug, topic_slug):
         title=topic["name"],
         topic=topic,
         category=category,
-        assets=assets,
-        images=sum(1 for asset in assets if asset["kind"] == "image"),
-        clips=sum(1 for asset in assets if asset["kind"] == "clip"),
-        image_only=bool(assets) and all(asset["kind"] == "image" for asset in assets),
+        assets=visible,
+        images=image_count,
+        clips=clip_count,
+        view=selected,
+        image_only=selected == "image",
     )
 
 
