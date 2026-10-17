@@ -20,7 +20,7 @@ from datetime import datetime, timedelta, timezone
 import boto3
 from botocore.client import Config
 
-from library import is_landscape_16_9, safe_filename, slugify
+from library import is_landscape_16_9, preview_object_key, safe_filename, slugify
 
 
 def clay_topics():
@@ -292,6 +292,7 @@ def prepare_clip(topic, clip):
         asset_id = str(uuid.uuid4())
         key = f"media/{slugify(CATEGORY)}/{slugify(topic)}/{asset_id}/{filename}"
         s3.upload_file(cut, BUCKET, key, ExtraArgs={"ContentType": "video/mp4"})
+        s3.upload_file(frame, BUCKET, preview_object_key(key), ExtraArgs={"ContentType": "image/jpeg"})
         size = os.path.getsize(cut)
     title = (clip.get("title") or topic).strip()
     return {
@@ -321,6 +322,15 @@ def collect(topic, need):
         f"real {short}",
         f"{short} museum",
     ]
+    if "tablet" in topic.lower():
+        queries = [
+            "cuneiform clay tablet",
+            "cuneiform tablet",
+            "mesopotamian cuneiform tablet",
+            "ancient cuneiform writing clay",
+            "archaeological cuneiform tablet",
+            *queries,
+        ]
     chosen = []
     for query in queries:
         if len(chosen) >= need:
@@ -400,6 +410,9 @@ def main():
         topic["name"]: topic.get("clips") or 0
         for topic in library_json("GET", f"/api/topics?category={slugify(CATEGORY)}")["topics"]
     }
+    only = os.environ.get("CLAY_ONLY_TOPIC", "").strip()
+    if only:
+        names = [name for name in names if name.lower() == only.lower()]
     pending = [name for name in names if existing.get(name, 0) < TARGET]
     log(f"starting {len(pending)} topics, {TARGET} clips each, workers {WORKERS}")
     with ThreadPoolExecutor(max_workers=WORKERS) as pool:
