@@ -433,15 +433,24 @@ def api_clip_file(asset_id):
         record = library.asset(asset_id)
     except LibraryError as exc:
         return jsonify({"error": str(exc)}), exc.status
-    preview = request.args.get("preview") and record["kind"] == "image"
+    preview = bool(request.args.get("preview"))
     try:
         if preview:
             try:
                 body, status, headers = library.store.get(preview_object_key(record["r2_key"]))
                 headers["Content-Type"] = "image/jpeg"
+                headers["Cache-Control"] = "private, max-age=604800"
                 record = {**record, "filename": os.path.splitext(record["filename"])[0] + ".jpg"}
+                disposition = "inline"
+                headers["Content-Disposition"] = f'{disposition}; filename="{record["filename"]}"'
+                stream = BytesIO(body) if isinstance(body, (bytes, bytearray)) else body
+                return Response(stream, status=status, headers=headers)
             except Exception:
+                if record["kind"] == "clip":
+                    return jsonify({"error": "Preview not ready."}), 404
                 record, body, status, headers = library.open_asset(asset_id, request.headers.get("Range"))
+        elif record["kind"] == "clip" and not request.args.get("download") and hasattr(library.store, "presign"):
+            return redirect(library.store.presign(record["r2_key"]), code=302)
         else:
             record, body, status, headers = library.open_asset(asset_id, request.headers.get("Range"))
     except LibraryError as exc:

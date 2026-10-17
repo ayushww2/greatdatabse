@@ -26,6 +26,7 @@
   .kind-switch { display:flex; gap:8px; margin:-8px 0 16px; }
   .kind-switch a { border:1px solid var(--line); border-radius:999px; padding:8px 14px; color:var(--muted); background:#12161d; font-weight:650; }
   .kind-switch a.on { background:#2563eb; color:white; border-color:#2563eb; }
+  .clip-card[data-kind="clip"] .thumb::after { content:""; position:absolute; left:50%; top:50%; width:0; height:0; transform:translate(-35%, -50%); border-style:solid; border-width:11px 0 11px 18px; border-color:transparent transparent transparent white; filter:drop-shadow(0 1px 2px rgba(0,0,0,.7)); }
   details.uploader { margin-top:18px; }
   @media (max-width: 1100px) {
     .review { grid-template-columns:1fr; }
@@ -45,18 +46,14 @@
   <a class="{{ 'on' if view == 'image' else '' }}" href="{{ url_for('topic_page', category_slug=category.slug, topic_slug=topic.slug, view='images') }}">Images {{ images }}</a>
   <a class="{{ 'on' if view == 'clip' else '' }}" href="{{ url_for('topic_page', category_slug=category.slug, topic_slug=topic.slug, view='clips') }}">Clips {{ clips }}</a>
 </div>
-<div class="review{% if image_only %} image-review{% endif %}">
+<div class="review image-review">
   <div>
     {% if assets %}
     <div class="clip-grid" id="clip-grid">
       {% for asset in assets %}
       <button type="button" class="clip-card" data-rank="{{ asset.rank }}" data-src="{{ asset.file_url }}" data-preview="{{ asset.file_url }}?preview=1" data-name="{{ asset.filename }}" data-title="{{ asset.title }}" data-size="{{ asset.size_label }}" data-kind="{{ asset.kind }}">
         <div class="thumb">
-          {% if asset.kind == 'image' %}
-          <img alt="{{ asset.title }}" src="{{ asset.file_url }}?preview=1" decoding="async"{% if loop.index <= 8 %} fetchpriority="high"{% endif %}>
-          {% else %}
-          <video muted playsinline preload="none" data-lazy="{{ asset.file_url }}#t=0.1"></video>
-          {% endif %}
+          <img alt="{{ asset.title }}" src="{{ asset.file_url }}?preview=1" decoding="async"{% if loop.index <= 12 %} fetchpriority="high"{% endif %}>
           <span class="rank">#{{ asset.rank }}</span>
         </div>
         <div class="clip-meta">
@@ -71,7 +68,7 @@
     {% endif %}
   </div>
   <section class="player-panel">
-    <video id="stage" class="stage" controls playsinline preload="metadata"></video>
+    <video id="stage" class="stage" controls playsinline preload="none"></video>
     <img id="stage-image" class="stage" alt="" hidden>
     <div class="now-title" id="now-title">Select a clip</div>
     <div class="facts">
@@ -113,7 +110,7 @@
       stageImage.hidden = false;
       stageImage.dataset.showing = card.dataset.rank;
       stageImage.src = card.dataset.preview || src;
-      if ((card.dataset.preview || src) !== src) {
+      if (play && (card.dataset.preview || src) !== src) {
         const full = new Image();
         const rank = card.dataset.rank;
         full.onload = () => {
@@ -126,11 +123,19 @@
       stageImage.hidden = true;
       stageImage.removeAttribute("src");
       stage.style.display = "";
-      if (stage.dataset.current !== src) {
-        stage.src = src;
-        stage.dataset.current = src;
+      stage.poster = card.dataset.preview || "";
+      if (play) {
+        if (stage.dataset.current !== src) {
+          stage.src = src;
+          stage.dataset.current = src;
+        }
+        stage.play();
+      } else if (stage.dataset.current) {
+        stage.pause();
+        stage.removeAttribute("src");
+        stage.load();
+        stage.dataset.current = "";
       }
-      if (play) stage.play();
     }
     document.getElementById("now-title").textContent = "#" + card.dataset.rank + "  " + card.dataset.name;
     document.getElementById("now-kind").textContent = isImage ? "Image" : "Clip";
@@ -144,30 +149,18 @@
       card.style.display = text.includes(query) ? "" : "none";
     });
   });
-  const thumbs = [...document.querySelectorAll(".thumb video")];
-  const pending = [];
-  let loading = 0;
-  function pump() {
-    while (loading < 3 && pending.length) {
-      const video = pending.shift();
-      loading += 1;
-      const done = () => { loading -= 1; pump(); };
-      video.addEventListener("loadeddata", done, {once: true});
-      video.addEventListener("error", done, {once: true});
-      video.preload = "metadata";
-      video.src = video.dataset.lazy;
-    }
-  }
-  const observer = new IntersectionObserver((entries) => {
-    entries.forEach((entry) => {
-      if (!entry.isIntersecting) return;
-      const video = entry.target;
-      observer.unobserve(video);
-      if (!video.src) pending.push(video);
-    });
-    pump();
-  }, { rootMargin: "120px" });
+  document.addEventListener("keydown", (event) => {
+    if (event.target.closest("input, textarea")) return;
+    if (event.key !== "ArrowRight" && event.key !== "ArrowLeft" && event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
+    const visible = cards.filter((card) => card.style.display !== "none");
+    const index = visible.findIndex((card) => card.classList.contains("selected"));
+    const step = event.key === "ArrowRight" || event.key === "ArrowDown" ? 1 : -1;
+    const next = visible[index + step];
+    if (!next) return;
+    event.preventDefault();
+    next.scrollIntoView({block: "nearest"});
+    select(next, true);
+  });
   if (cards[0]) select(cards[0], false);
-  setTimeout(() => thumbs.forEach((video) => observer.observe(video)), 200);
 </script>
 {% endblock %}
